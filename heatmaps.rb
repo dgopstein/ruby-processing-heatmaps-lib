@@ -1,3 +1,8 @@
+# count_groups([:a, :b, :a, :b, :c]) => {:a=>2, :b=>2, :c=>1}
+def count_groups(h)
+  Hash[*h.group_by{|x| x}.map{|k,v| [k, v.size]}.flatten(1)]
+end
+
 module Heatmaps
   attr_accessor :heatmapBrush, :heatmapColors, :gradientMap, :alphaMask, :heatmap, :clickmap, :maxValue
   
@@ -17,7 +22,9 @@ module Heatmaps
     # load pixel arrays for all relevant images
     heatmapColors.loadPixels();
 
-    clicks.each do |mouseX, mouseY|
+    click_counts = count_groups(clicks)
+
+    click_counts.each do |(mouseX, mouseY), count|
       # blit the clickmapBrush onto the (offscreen) clickmap:
       #clickmap.blend(clickmapBrush, 0,0,clickmapBrush.width,clickmapBrush.height,mouseX-clickmapBrush.width/2,mouseY-clickmapBrush.height/2,clickmapBrush.width,clickmapBrush.height,BLEND);
 
@@ -25,7 +32,7 @@ module Heatmaps
       #image(clickmapBrush, mouseX-clickmapBrush.width/2, mouseY-clickmapBrush.height/2);
       
       # render the heatmapBrush into the gradientMap:
-      drawToGradient(mouseX, mouseY);
+      drawToGradient(mouseX, mouseY, count);
       # update the heatmap from the updated gradientMap:
       updateHeatmap();
     end
@@ -36,7 +43,7 @@ module Heatmaps
   
   # Rendering code that blits the heatmapBrush onto the gradientMap, centered at the specified pixel and drawn with additive blending
   
-  def drawToGradient(x, y)
+  def drawToGradient(x, y, count=1)
     brushWidth = heatmapBrush.width
     brushHeight = heatmapBrush.height
     # find the top left corner coordinates on the target image
@@ -63,7 +70,7 @@ module Heatmaps
         gmIndex = hmY*gradientMap.width+hmX;
         
         if (gradientMap.pixels[gmIndex] < 0xffffff-col) # sanity check to make sure the gradient map isn't "saturated" at this pixel. This would take some 65535 clicks on the same pixel to happen. :)
-          gradientMap.pixels[gmIndex] += col; # additive blending in our 24-bit world: just add one value to the other.
+          gradientMap.pixels[gmIndex] += col*count; # additive blending in our 24-bit world: just add one value to the other.
           if (gradientMap.pixels[gmIndex] > maxValue) # We're keeping track of the maximum pixel value on the gradient map, so that the heatmap image can display relative click densities (scroll down to updateHeatmap() for more)
             self.maxValue = gradientMap.pixels[gmIndex];
           end
